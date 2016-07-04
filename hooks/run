@@ -1,0 +1,9 @@
+#!/bin/sh
+#
+
+set -eox
+
+export MYSQL_HOME={{pkg.svc_config_path}}
+
+exec 2>&1
+exec {{pkg.path}}/bin/mysqld_safe --datadir='{{pkg.svc_data_path}}/mysql'

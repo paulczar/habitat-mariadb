@@ -1,0 +1,41 @@
+#!/bin/sh
+#
+
+set -xeo
+
+export MYSQL_HOME={{pkg.svc_config_path}}
+
+exec 2>&1
+
+mkdir -p {{pkg.svc_config_path}}/conf.d
+mkdir -p {{pkg.svc_data_path}}/mysql
+mkdir -p {{pkg.svc_data_path}}/run
+mkdir -p {{pkg.svc_data_path}}/tmp
+mkdir -p {{pkg.svc_data_path}}/log
+
+chown -R hab:hab {{pkg.svc_data_path}}/mysql
+chown -R hab:hab {{pkg.svc_data_path}}/run
+chown -R hab:hab {{pkg.svc_data_path}}/tmp
+chown -R hab:hab {{pkg.svc_data_path}}/log
+
+ln -s /dev/stdout {{pkg.svc_data_path}}/log/mysql.log
+
+if [[ ! -e "{{pkg.svc_data_path}}/mysql/mysql" ]]; then
+  chpst -u hab:hab {{pkg.path}}/scripts/mysql_install_db \
+  --basedir={{pkg.path}} --datadir={{pkg.svc_data_path}}/mysql
+fi
+
+echo "==> starting mysql in order to set up passwords"
+{{pkg.path}}/bin/mysqld_safe --datadir={{pkg.svc_data_path}}/mysql --skip-syslog --skip-networking > /dev/null &
+echo "-----> testing if DB is up"
+while [[ ! -e {{pkg.svc_data_path}}/run/mysqld.sock ]] ; do sleep 1; done
+while ! {{pkg.path}}/bin/mysql -e 'select now()'; do sleep 1; done
+
+{{pkg.path}}/bin/mysql -e "SET wsrep_on=OFF; GRANT ALL PRIVILEGES ON *.* TO '{{cfg.mysql_user}}'@'%' IDENTIFIED BY '{{cfg.mysql_pass}}';"
+{{pkg.path}}/bin/mysql -e "SET wsrep_on=OFF; GRANT SUPER ON *.* TO '{{cfg.mysql_user}}'@'%' WITH GRANT OPTION;"
+{{pkg.path}}/bin/mysql -e 'FLUSH PRIVILEGES;'
+echo "-----> creating database: {{cfg.database }}"
+{{pkg.path}}/bin/mysqladmin create {{cfg.database }} || echo {{cfg.database }} may already exist.
+echo "==> stopping mysql after setting up passwords"
+{{pkg.path}}/bin/mysqladmin shutdown
+

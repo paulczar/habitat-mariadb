@@ -1,0 +1,19 @@
+#!/bin/sh
+#
+# MySQL health check hook
+
+# default return code is 0
+rc=0
+
+export MYSQL_HOME={{pkg.svc_config_path}}
+
+{{pkg.path}}/bin/mysql -e 'select now()'
+
+case $? in
+  0)
+    rc=0 ;;
+  *)
+    rc=2 ;;
+esac
+
+exit $rc
